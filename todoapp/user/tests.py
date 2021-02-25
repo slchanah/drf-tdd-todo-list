@@ -10,7 +10,9 @@ CREATE_USER_URL = reverse('user:create')
 
 
 def create_user(username, password):
-    return get_user_model().objects.create_user(username=username, password=password)
+    return get_user_model().objects.create_user(
+        username=username, password=password
+    )
 
 
 class UserApiTestsWithoutToken(TestCase):
