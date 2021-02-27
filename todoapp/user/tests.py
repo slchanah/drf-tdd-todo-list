@@ -7,6 +7,7 @@ from rest_framework import status
 
 
 CREATE_USER_URL = reverse('user:create')
+LOGIN_USER_URL = reverse('user:login')
 
 
 def create_user(username, password):
@@ -54,3 +55,42 @@ class UserApiTestsWithoutToken(TestCase):
         user_exists = get_user_model().objects.filter(
             username=payload['username']).exists()
         self.assertFalse(user_exists)
+
+    def test_login_valid_user_success(self):
+        payload = {
+            'username': 'username',
+            'password': '12345',
+        }
+
+        create_user(username=payload['username'], password=payload['password'])
+
+        res = self.client.post(LOGIN_USER_URL, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('access', res.data)
+        self.assertIn('refresh', res.data)
+
+    def test_login_user_not_exists(self):
+        payload = {
+            'username': 'username',
+            'password': '12345',
+        }
+
+        res = self.client.post(LOGIN_USER_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn('access', res.data)
+        self.assertNotIn('refresh', res.data)
+
+    def test_login_user_incorrect_password(self):
+        payload = {
+            'username': 'username',
+            'password': '12345',
+        }
+
+        create_user(username=payload['username'], password=payload['password'])
+
+        payload['password'] = 'wrong'
+        res = self.client.post(LOGIN_USER_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn('access', res.data)
+        self.assertNotIn('refresh', res.data)
