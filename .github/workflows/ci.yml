@@ -44,8 +44,8 @@ jobs:
     - name: DB migration
       working-directory: ./todoapp
       run: |
-        python manage.py makemigrations
-        python manage.py migrate
+        pipenv run python manage.py makemigrations
+        pipenv run python manage.py migrate
     - name: Test
       working-directory: ./todoapp
       run: pipenv run python manage.py test
