@@ -1,12 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from category.views import CategoryViewSet
+from todos.views import CategoryViewSet, TodoItemViewSet
 
 router = DefaultRouter()
-router.register('', CategoryViewSet)
+router.register('categories', CategoryViewSet)
+router.register('items', TodoItemViewSet)
 
-app_name = 'category'
+app_name = 'todo'
 
 urlpatterns = [
     path('', include(router.urls)),

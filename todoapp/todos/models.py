@@ -15,3 +15,16 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class TodoItem(models.Model):
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE
+    )
+    name = models.CharField(max_length=255)
+    done = models.BooleanField(default=False)
+    date_created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
