@@ -1,3 +1,7 @@
 from django.contrib import admin
 
-# Register your models here.
+from todos import models
+
+
+admin.register(models.Category)
+admin.register(models.TodoItem)

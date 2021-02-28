@@ -50,7 +50,8 @@ class TodoItemViewSet(viewsets.ModelViewSet):
             id=self.request.query_params['category_id'])
         if not category or self.request.user != category.user:
             raise ValidationError('Invalid category id')
-        return self.queryset.filter(category=category).order_by('-date_created')
+        return self.queryset.filter(category=category)\
+            .order_by('-date_created')
 
     def perform_create(self, serializer):
         category = Category.objects.get(
