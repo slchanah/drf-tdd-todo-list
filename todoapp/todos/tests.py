@@ -13,6 +13,10 @@ CATEGORY_LIST_URL = reverse('todo:category-list')
 TODO_ITEM_LIST_URL = reverse('todo:todoitem-list')
 
 
+def get_todo_item_detail_url(item_id):
+    return reverse('todo:todoitem-detail', args=[item_id])
+
+
 def create_user(username, password):
     return get_user_model().objects.create_user(
         username=username, password=password
@@ -110,7 +114,7 @@ class PrivateCategoryApiTest(TestCase):
         }
         res = self.client.post(CATEGORY_LIST_URL, payload)
 
-        self.assertEqual(res.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class PublicTodoItemApiTest(TestCase):
@@ -125,14 +129,41 @@ class PublicTodoItemApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    # def test_login_required_create(self):
-    #     """Test that authentication is required for creating category"""
-    #     payload = {
-    #         'name': 'cat_name'
-    #     }
-    #     res = self.client.post(CATEGORY_LIST_URL, payload)
+    def test_login_required_create(self):
+        """Test that authentication is required for creating item"""
+        payload = {
+            'name': 'cat_name',
+            'category_id': 1
+        }
+        res = self.client.post(CATEGORY_LIST_URL, payload)
 
-    #     self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_login_required_update(self):
+        """Test that authentication is required for updating item"""
+        user = create_user('username2', 'password')
+        item = create_sample_item(
+            create_sample_cateory(user, 'cat1'), 'item')
+        category = create_sample_cateory(user, 'cat2')
+
+        payload = {
+            'name': 'new_name',
+            'done': True,
+            'category_id': category.id,
+        }
+        res = self.client.put(get_todo_item_detail_url(item.id), payload)
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_login_required_destroy(self):
+        """Test that authentication is required for destorying item"""
+        user = create_user('username2', 'password')
+        item = create_sample_item(
+            create_sample_cateory(user, 'cat1'), 'item')
+
+        res = self.client.delete(get_todo_item_detail_url(item.id))
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class PrivateTodoItemApiTest(TestCase):
@@ -178,15 +209,140 @@ class PrivateTodoItemApiTest(TestCase):
     def test_create_todo_item_empty_name(self):
         """Test creating an item with an empty name"""
         payload = {
-            'name': '  '
+            'name': '  ',
+            'category_id': 1
         }
         res = self.client.post(TODO_ITEM_LIST_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_category_null_name(self):
+    def test_create_todo_item_null_name(self):
         """Test creating an item without a name"""
-        payload = {}
+        payload = {
+            'category_id': 1
+        }
         res = self.client.post(TODO_ITEM_LIST_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_todo_item_invalid_category_id(self):
+        """Test creating an item with invalid category id"""
+        temp_user = create_user('username2', 'password')
+        create_sample_cateory(temp_user, name='cat_name1')
+        payload = {
+            'name': 'item',
+            'category_id': 1
+        }
+        res = self.client.post(TODO_ITEM_LIST_URL, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_todo_item_name(self):
+        """Test updating an item name"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+        payload = {
+            'name': 'new item name',
+        }
+        res = self.client.patch(get_todo_item_detail_url(item.id), payload)
+
+        item.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(item.name, payload['name'])
+
+    def test_update_todo_item_empty_name(self):
+        """Test updating an item with empty name"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+        payload = {
+            'name': '  ',
+        }
+        res = self.client.patch(get_todo_item_detail_url(item.id), payload)
+
+        item.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotEqual(item.name, payload['name'])
+
+    def test_update_todo_item_category_id(self):
+        """Test updating the category"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+        category = create_sample_cateory(self.user, 'cat2')
+
+        payload = {
+            'category_id': category.id,
+        }
+        res = self.client.patch(get_todo_item_detail_url(item.id), payload)
+
+        item.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(item.category_id, payload['category_id'])
+
+    def test_update_todo_item_invalid_category_id(self):
+        """Test updating the item with an invalid category"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+        category = create_sample_cateory(
+            create_user('username2', 'password'), 'cat2')
+
+        payload = {
+            'category_id': category.id,
+        }
+        res = self.client.patch(get_todo_item_detail_url(item.id), payload)
+
+        item.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotEqual(item.category_id, payload['category_id'])
+
+    def test_update_todo_item_done(self):
+        """Test updating the category"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+
+        payload = {
+            'done': True,
+        }
+        res = self.client.patch(get_todo_item_detail_url(item.id), payload)
+
+        item.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(item.done, payload['done'])
+
+    def test_full_update_todo_item(self):
+        """Test fully updating the category"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+        category = create_sample_cateory(self.user, 'cat2')
+
+        payload = {
+            'name': 'new_name',
+            'done': True,
+            'category_id': category.id,
+        }
+        res = self.client.put(get_todo_item_detail_url(item.id), payload)
+
+        item.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(item.name, payload['name'])
+        self.assertEqual(item.done, payload['done'])
+        self.assertEqual(item.category_id, payload['category_id'])
+
+    def test_update_non_exist_todo_item(self):
+        """Test updating an non existing item"""
+
+        payload = {
+            'name': 'new_name',
+        }
+        res = self.client.put(get_todo_item_detail_url(999), payload)
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_destroy_todo_item(self):
+        """Test deleting an item"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+
+        res = self.client.delete(get_todo_item_detail_url(item.id))
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TodoItem.objects.filter(id=item.id).exists())
