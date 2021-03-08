@@ -1,7 +1,7 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import viewsets, mixins
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from todos.models import Category, TodoItem
 from todos.serializers import CategorySerializer, TodoItemSerializer
@@ -26,6 +26,15 @@ class CategoryViewSet(viewsets.GenericViewSet,
             raise ValidationError('Category name is already existed')
         serializer.save(user=self.request.user)
 
+    def perform_update(self, serializer):
+        if 'name' in serializer.validated_data:
+            if self.queryset.filter(
+                    name=serializer.validated_data['name'],
+                    user=self.request.user).exists():
+                raise ValidationError('Category name is already existed')
+
+        super().perform_update(serializer)
+
 
 class TodoItemViewSet(viewsets.ModelViewSet):
     queryset = TodoItem.objects.all()
@@ -36,7 +45,7 @@ class TodoItemViewSet(viewsets.ModelViewSet):
         try:
             return self.queryset.get(id=self.kwargs['pk'])
         except ObjectDoesNotExist:
-            raise ValidationError('Invalid item pk')
+            raise NotFound('Invalid item pk')
 
     def get_queryset(self):
         category = Category.objects.get(

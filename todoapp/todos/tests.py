@@ -17,6 +17,10 @@ def get_todo_item_detail_url(item_id):
     return reverse('todo:todoitem-detail', args=[item_id])
 
 
+def get_category_detail_url(category_id):
+    return reverse('todo:category-detail', args=[category_id])
+
+
 def create_user(username, password):
     return get_user_model().objects.create_user(
         username=username, password=password
@@ -49,6 +53,19 @@ class PublicCategoryApiTest(TestCase):
             'name': 'cat_name'
         }
         res = self.client.post(CATEGORY_LIST_URL, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_login_required_update(self):
+        """Test that authentication is required for updating category"""
+        category = create_sample_cateory(
+            create_user('username', 'password'), 'name')
+
+        payload = {
+            'name': 'name2'
+        }
+
+        res = self.client.patch(get_category_detail_url(category.id), payload)
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -115,6 +132,71 @@ class PrivateCategoryApiTest(TestCase):
         res = self.client.post(CATEGORY_LIST_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_category(self):
+        """Test updating a category by an authenticated user"""
+        category = create_sample_cateory(self.user, 'name')
+
+        payload = {
+            'name': 'name2'
+        }
+
+        res = self.client.patch(get_category_detail_url(category.id), payload)
+
+        category.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(category.name, payload['name'])
+
+    def test_update_category_empty_name(self):
+        """Test updating a category with an empty name"""
+        category = create_sample_cateory(self.user, 'name')
+
+        payload = {
+            'name': '   '
+        }
+
+        res = self.client.patch(get_category_detail_url(category.id), payload)
+
+        category.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotEqual(category.name, payload['name'])
+
+    def test_update_category_duplicated_name(self):
+        """Test updating a category with a duplicated name"""
+        create_sample_cateory(self.user, 'name1')
+        category = create_sample_cateory(self.user, 'name2')
+
+        payload = {
+            'name': 'name1'
+        }
+
+        res = self.client.patch(get_category_detail_url(category.id), payload)
+
+        category.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotEqual(category.name, payload['name'])
+
+    def test_deleting_category(self):
+        """Test deleting a category by an authenticated user"""
+        category = create_sample_cateory(self.user, 'category')
+        create_sample_item(category, 'item1')
+        create_sample_item(category, 'item2')
+        create_sample_item(category, 'item3')
+
+        self.assertTrue(TodoItem.objects.filter(category=category).exists())
+
+        res = self.client.delete(get_category_detail_url(category.id))
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TodoItem.objects.filter(category=category).exists())
+
+    def test_deleting_category_invalid_id(self):
+        """Test deleting a category with an invalid id"""
+        category = create_sample_cateory(self.user, 'category')
+
+        res = self.client.delete(get_category_detail_url(category.id + 1))
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class PublicTodoItemApiTest(TestCase):
@@ -335,7 +417,7 @@ class PrivateTodoItemApiTest(TestCase):
         }
         res = self.client.put(get_todo_item_detail_url(999), payload)
 
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_destroy_todo_item(self):
         """Test deleting an item"""
@@ -346,3 +428,12 @@ class PrivateTodoItemApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(TodoItem.objects.filter(id=item.id).exists())
+
+    def test_destroy_todo_item_invalid_id(self):
+        """Test deleting an item with an invalid id"""
+        item = create_sample_item(
+            create_sample_cateory(self.user, 'cat1'), 'item')
+
+        res = self.client.delete(get_todo_item_detail_url(item.id + 1))
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
